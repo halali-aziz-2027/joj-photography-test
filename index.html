@@ -793,6 +793,22 @@ async function jojLoadPackages(){if(!jojDb){jojPackages=JOJ_DEFAULTS.map(([name,
  const {data,error}=await jojDb.from('joj_packages').select('*').order('sort_order');if(error){jojStatus('تعذر تحميل البكجات: '+error.message);return;}jojPackages=data||[];jojRenderPackages();jojEditLoad();}
 async function jojLogin(){if(!jojDb)return jojStatus('أدخلي رابط Supabase والمفتاح العام في ملف joj-config.js أولًا.');const {error}=await jojDb.auth.signInWithPassword({email:je('jojEmail').value.trim(),password:je('jojPass').value});je('jojPass').value='';if(error)return jojStatus('تعذر الدخول: '+error.message);await jojRefreshAuth();}
 async function jojLogout(){if(jojDb)await jojDb.auth.signOut();await jojRefreshAuth();}
+  async function jojSetNewPassword() {
+  if (!jojDb) return;
+  const password = prompt('اكتبي كلمة المرور الجديدة (6 أحرف على الأقل):');
+  if (!password) return;
+  if (password.length < 6) {
+    alert('كلمة المرور قصيرة');
+    return;
+  }
+  const { error } = await jojDb.auth.updateUser({ password });
+  if (error) {
+    alert('تعذر تغيير كلمة المرور: ' + error.message);
+  } else {
+    alert('تم تغيير كلمة المرور بنجاح');
+    await jojRefreshAuth();
+  }
+}
 async function jojRefreshAuth(){if(!jojDb)return;const {data:{user}}=await jojDb.auth.getUser();jojIsAdmin=false;if(user){const {data}=await jojDb.from('joj_admins').select('user_id').eq('user_id',user.id).maybeSingle();jojIsAdmin=!!data;}
  je('jojTools').hidden=!jojIsAdmin;jojStatus(!user?'يرجى تسجيل الدخول':jojIsAdmin?'تم الدخول: لوحة جوري ولمى المشتركة متاحة.':'تم الدخول كعضو؛ لوحة الإدارة خاصة بفريق جوج.');
  await jojLoadPackages();await jojLoadChat();if(jojIsAdmin)await jojLoadBookings();}
@@ -807,7 +823,13 @@ async function jojLoadChat(){if(!jojDb){je('chatMessages').textContent='غرفة
 async function jojSendChat(){if(!jojDb)return alert('الدردشة غير متصلة بعد.');const {data:{user}}=await jojDb.auth.getUser();if(!user)return alert('سجلي الدخول أولًا من لوحة جوري ولمى.');const body=je('chatInput').value.trim(),display_name=je('chatName').value.trim().slice(0,60)||'عضو';if(!body||body.length>500)return;const {error}=await jojDb.from('joj_chat_messages').insert({user_id:user.id,name:display_name,message:body});if(error)return alert('لم تُرسل الرسالة: '+error.message);je('chatInput').value='';await jojLoadChat();}
 window.sendMessage=jojSendChat;window.renderMessages=function(){};
 je('jojDate').addEventListener('change',jojHijri);je('jojPackage').addEventListener('change',jojRenderTimes);je('jojEditPackage').addEventListener('change',jojEditLoad);
-jojLoadPackages();if(jojDb){jojDb.auth.onAuthStateChange(()=>setTimeout(jojRefreshAuth,0));jojRefreshAuth();jojChannel=jojDb.channel('joj-chat-live').on('postgres_changes',{event:'*',schema:'public',table:'joj_chat_messages'},()=>jojLoadChat()).subscribe();}else{jojStatus('نسخة المعاينة جاهزة. لم يتم ربط Supabase بعد؛ الحجز والدردشة المشتركة غير مفعّلين.');je('chatMessages').textContent='الدردشة المباشرة بانتظار الاتصال.';}
+jojLoadPackages();if(jojDb){jojDb.auth.onAuthStateChange((event) => {
+  if (event === 'PASSWORD_RECOVERY') {
+    setTimeout(jojSetNewPassword, 300);
+  } else {
+    setTimeout(jojRefreshAuth, 0);
+  }
+});jojChannel=jojDb.channel('joj-chat-live').on('postgres_changes',{event:'*',schema:'public',table:'joj_chat_messages'},()=>jojLoadChat()).subscribe();}else{jojStatus('نسخة المعاينة جاهزة. لم يتم ربط Supabase بعد؛ الحجز والدردشة المشتركة غير مفعّلين.');je('chatMessages').textContent='الدردشة المباشرة بانتظار الاتصال.';}
 </script>
 </body>
 </html>
